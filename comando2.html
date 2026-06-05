@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Consulta de CNPJs</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; padding: 30px 20px; }
+    h1 { text-align: center; color: #1a3a5c; margin-bottom: 6px; font-size: 1.8rem; }
+    .subtitle { text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 24px; }
+
+    .tabs { display: flex; gap: 0; max-width: 900px; margin: 0 auto 0 auto; }
+    .tab-btn {
+      padding: 11px 32px; border: none; border-radius: 10px 10px 0 0;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      background: #dde3ec; color: #555; transition: background 0.2s, color 0.2s;
+      border-bottom: 3px solid transparent;
+    }
+    .tab-btn:hover { background: #c8d0de; }
+    .tab-btn.active { background: #fff; color: #1a3a5c; border-bottom: 3px solid #fff; box-shadow: 0 -2px 8px rgba(0,0,0,0.07); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card { background: #fff; border-radius: 0 10px 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 24px; max-width: 900px; margin: 0 auto 30px auto; }
+    label { font-weight: 600; display: block; margin-bottom: 8px; color: #1a3a5c; }
+    textarea { width: 100%; height: 130px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; resize: vertical; font-family: monospace; transition: border 0.2s; }
+    textarea:focus { outline: none; border-color: #1a6fc4; }
+    .hint { font-size: 0.8rem; color: #888; margin-top: 6px; }
+
+    .tipo-row { display: flex; gap: 14px; margin-bottom: 18px; align-items: center; flex-wrap: wrap; }
+    .tipo-label { font-weight: 600; color: #1a3a5c; margin-bottom: 0; }
+    .tipo-options { display: flex; gap: 10px; }
+    .tipo-btn { padding: 8px 24px; border: 2px solid #ccc; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; background: #f5f5f5; color: #555; transition: all 0.2s; }
+    .tipo-btn:hover { border-color: #1a6fc4; color: #1a6fc4; }
+    .tipo-btn.selected-cliente { background: #1a6fc4; border-color: #1a6fc4; color: #fff; }
+    .tipo-btn.selected-fornecedor { background: #e67e22; border-color: #e67e22; color: #fff; }
+    .tipo-badge { font-size: 0.82rem; padding: 4px 12px; border-radius: 20px; font-weight: 700; display: none; }
+    .tipo-badge.show { display: inline-block; }
+    .tipo-badge.badge-c { background: #d0e8ff; color: #1a4a80; }
+    .tipo-badge.badge-f { background: #fde8d0; color: #7a3a00; }
+
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    button { padding: 11px 28px; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600; transition: background 0.2s, transform 0.1s; }
+    button:active { transform: scale(0.97); }
+    #btnConsultar { background: #1a6fc4; color: #fff; }
+    #btnConsultar:hover { background: #155da0; }
+    #btnConsultar:disabled { background: #8ab3d9; cursor: not-allowed; }
+    #btnLimpar { background: #e0e0e0; color: #444; }
+    #btnLimpar:hover { background: #c8c8c8; }
+    #btnExportar { background: #28a745; color: #fff; display: none; }
+    #btnExportar:hover { background: #1e7e34; }
+
+    #status { text-align: center; font-size: 0.95rem; color: #555; margin: 12px 0; min-height: 22px; }
+
+    .progress-bar-container { background: #e0e0e0; border-radius: 6px; height: 10px; max-width: 900px; margin: 0 auto 20px auto; display: none; }
+    .progress-bar { height: 10px; background: #1a6fc4; border-radius: 6px; width: 0%; transition: width 0.3s; }
+
+    .results-wrapper { max-width: 1300px; margin: 0 auto; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); font-size: 0.88rem; }
+    thead { background: #1a3a5c; color: #fff; }
+    thead th { padding: 12px 14px; text-align: left; white-space: nowrap; font-weight: 600; }
+    tbody tr { border-bottom: 1px solid #eee; transition: background 0.15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f5f8ff; }
+    tbody td { padding: 11px 14px; vertical-align: top; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+    .badge-ativa     { background: #d4edda; color: #155724; }
+    .badge-baixada   { background: #f8d7da; color: #721c24; }
+    .badge-inapta    { background: #fff3cd; color: #856404; }
+    .badge-suspensa  { background: #ffeeba; color: #856404; }
+    .badge-outro     { background: #e2e3e5; color: #383d41; }
+    .badge-erro      { background: #f8d7da; color: #721c24; }
+    .badge-tipo-C    { background: #d0e8ff; color: #1a4a80; }
+    .badge-tipo-F    { background: #fde8d0; color: #7a3a00; }
+
+    .cnpj-cell { font-family: monospace; font-weight: 600; white-space: nowrap; }
+    .loading-row td { text-align: center; color: #888; font-style: italic; padding: 16px; }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #1a6fc4; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Aba Extrair ── */
+    .file-box {
+      border: 2px dashed #b0bec5; border-radius: 10px; padding: 20px;
+      background: #f8fafc; transition: border-color 0.2s, background 0.2s;
+      display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;
+    }
+    .file-box:hover { border-color: #1a6fc4; background: #f0f6ff; }
+    .file-box .file-desc { font-size: 0.82rem; color: #888; }
+    .file-input-wrapper input[type="file"] { display: none; }
+    .file-input-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 20px; background: #1a6fc4; color: #fff;
+      border-radius: 8px; font-weight: 600; font-size: 0.93rem;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .file-input-label:hover { background: #155da0; }
+    .file-name-display {
+      font-size: 0.85rem; color: #444; font-family: monospace;
+      word-break: break-all; min-height: 20px;
+    }
+
+    #btnExtrair { background: #1a6fc4; color: #fff; }
+    #btnExtrair:hover { background: #155da0; }
+    #btnExtrair:disabled { background: #8ab3d9; cursor: not-allowed; }
+    #btnLimparExtrair { background: #e0e0e0; color: #444; }
+    #btnLimparExtrair:hover { background: #c8c8c8; }
+
+    #statusExtrair { font-size: 0.93rem; color: #555; min-height: 22px; margin: 12px 0; }
+
+    .extrair-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat-chip { padding: 5px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 700; background: #d0e8ff; color: #1a4a80; }
+    .stat-chip.warn    { background: #fff3cd; color: #856404; }
+    .stat-chip.success { background: #d4edda; color: #155724; }
+    .stat-chip.danger  { background: #f8d7da; color: #721c24; }
+
+    .detection-box {
+      background: #f4f8ff; border: 1px solid #c8ddf5; border-radius: 8px;
+      padding: 12px 16px; font-family: monospace; font-size: 0.82rem;
+      color: #1a3a5c; margin-bottom: 16px; display: none; line-height: 1.8;
+      overflow-x: auto; white-space: nowrap;
+    }
+    .detection-box .hl-col1  { background: #e0e0e0; color: #555;  border-radius: 3px; padding: 1px 4px; }
+    .detection-box .hl-cnpj  { background: #ffe066; color: #333;  border-radius: 3px; padding: 1px 4px; font-weight: 700; }
+    .detection-box .hl-resto { background: #f0f0f0; color: #999;  border-radius: 3px; padding: 1px 4px; }
+
+    .limit-notice {
+      background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;
+      padding: 10px 16px; font-size: 0.88rem; color: #856404;
+      margin-bottom: 14px; display: none;
+    }
+
+    .listas-wrapper { display: flex; gap: 20px; align-items: flex-start; margin-top: 8px; }
+    .lista-col { flex: 1; min-width: 0; }
+    .lista-col label { margin-bottom: 10px; font-size: 0.95rem; }
+    .cnpj-list-wrapper { border: 1px solid #dde3ec; border-radius: 10px; overflow: hidden; }
+    .cnpj-list-wrapper.cnpj-theme .cnpj-list-header { background: #1a3a5c; }
+    .cnpj-list-wrapper.cpf-theme  .cnpj-list-header { background: #5c3a1a; }
+    .cnpj-list-header { color: #fff; display: grid; grid-template-columns: 1fr; padding: 10px 16px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.03em; }
+    .cnpj-list-body { max-height: 480px; overflow-y: auto; }
+    .cnpj-list-row { display: grid; grid-template-columns: 1fr; padding: 10px 16px; border-bottom: 1px solid #eef1f6; align-items: center; transition: background 0.15s; }
+    .cnpj-list-row:last-child { border-bottom: none; }
+    .cnpj-list-row:hover { background: #f5f8ff; }
+    .cnpj-list-row .num { font-family: monospace; font-size: 1rem; font-weight: 600; color: #1a3a5c; letter-spacing: 0.04em; }
+    .empty-msg { padding: 18px 16px; font-size: 0.88rem; color: #aaa; text-align: center; font-style: italic; }
+
+    /* ── Aba Converter NFSe ── */
+    #btnProcessarNFSe { background: #6f42c1; color: #fff; }
+    #btnProcessarNFSe:hover { background: #5a32a3; }
+    #btnProcessarNFSe:disabled { background: #b39ddb; cursor: not-allowed; }
+    #btnLimparNFSe { background: #e0e0e0; color: #444; }
+    #btnLimparNFSe:hover { background: #c8c8c8; }
+    #btnDownloadNFSe { background: #28a745; color: #fff; display: none; }
+    #btnDownloadNFSe:hover { background: #1e7e34; }
+
+    #statusNFSe { font-size: 0.93rem; color: #555; min-height: 22px; margin: 12px 0; }
+
+    .nfse-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .nfse-config-item { display: flex; flex-direction: column; gap: 6px; }
+    .nfse-config-item label { margin-bottom: 0; font-size: 0.9rem; }
+    .nfse-config-item input[type="number"] { padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; width: 100%; transition: border 0.2s; }
+    .nfse-config-item input[type="number"]:focus { outline: none; border-color: #6f42c1; }
+
+    .nfse-info-box { background: #f4f0ff; border: 1px solid #d0bcff; border-radius: 8px; padding: 12px 16px; font-size: 0.82rem; color: #3d1a78; margin-bottom: 20px; line-height: 1.7; }
+    .nfse-info-box strong { color: #5a32a3; }
+
+    .nfse-preview { background: #1e1e2e; color: #cdd6f4; border-radius: 10px; padding: 16px; font-family: monospace; font-size: 0.8rem; max-height: 340px; overflow-y: auto; margin-top: 16px; display: none; line-height: 1.6; white-space: pre; }
+    .nfse-preview .log-ok   { color: #a6e3a1; }
+    .nfse-preview .log-warn { color: #f9e2af; }
+    .nfse-preview .log-err  { color: #f38ba8; }
+    .nfse-preview .log-dbg  { color: #89dceb; }
+    .nfse-preview .log-info { color: #89b4fa; }
+
+    .nfse-stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+
+    @media (max-width: 650px) {
+      .listas-wrapper { flex-direction: column; }
+      .nfse-config-grid { grid-template-columns: 1fr; }
+      h1 { font-size: 1.4rem; }
+      thead th, tbody td { padding: 8px 10px; font-size: 0.8rem; }
+      .tabs .tab-btn { padding: 10px 16px; font-size: 0.88rem; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>🔍 Consulta de CNPJs</h1>
+<p class="subtitle">Dados via BrasilAPI · Fonte: Receita Federal do Brasil</p>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="trocarAba('consulta')">🔎 Consulta CNPJ</button>
+  <button class="tab-btn"        onclick="trocarAba('extrair')">📄 Extrair CNPJ</button>
+  <button class="tab-btn"        onclick="trocarAba('nfse')">🔄 Converter NFSe</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ABA 1 · Consulta CNPJ
+     ══════════════════════════════════════════════════════ -->
+<div id="aba-consulta" class="tab-content active">
+  <div class="card">
+    <div class="tipo-row">
+      <label class="tipo-label">Tipo:</label>
+      <div class="tipo-options">
+        <button class="tipo-btn" id="btnCliente"    onclick="selecionarTipo('C')">👤 Cliente</button>
+        <button class="tipo-btn" id="btnFornecedor" onclick="selecionarTipo('F')">🏭 Fornecedor</button>
+      </div>
+      <span class="tipo-badge badge-c" id="tipoBadge"></span>
+    </div>
+    <label for="cnpjInput">CNPJs para consultar</label>
+    <textarea id="cnpjInput" placeholder="Cole os CNPJs aqui, um por linha ou separados por vírgula/ponto-e-vírgula.
+Exemplos:
+11.222.333/0001-81
+11222333000181
+00.000.000/0001-91, 11.111.111/0001-11"></textarea>
+    <p class="hint">✅ Aceita CNPJs com ou sem formatação (pontos, barras, traços).</p>
+    <div class="btn-row">
+      <button id="btnConsultar" onclick="consultarTodos()">▶ Consultar</button>
+      <button id="btnLimpar"    onclick="limpar()">✕ Limpar</button>
+      <button id="btnExportar"  onclick="exportarCSV()">⬇ Exportar CSV</button>
+    </div>
+  </div>
+  <div id="status"></div>
+  <div class="progress-bar-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <div class="results-wrapper" id="resultsWrapper" style="display:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th><th>CNPJ</th><th>Razão Social</th><th>Nome Fantasia</th>
+          <th>Situação</th><th>Abertura</th><th>CNAE Principal</th>
+          <th>Natureza Jurídica</th><th>Porte</th><th>UF</th><th>Município</th>
+          <th>Bairro</th><th>Endereço</th><th>Número</th><th>Complemento</th>
+          <th>CEP</th><th>Telefone</th><th>Capital Social</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ABA 2 · Extrair CNPJ
+     ══════════════════════════════════════════════════════ -->
+<div id="aba-extrair" class="tab-content">
+  <div class="card">
+
+    <div class="file-box">
+      <label>📂 Origem</label>
+      <p class="file-desc">
+        Selecione um arquivo <strong>.txt</strong> de largura fixa.
+        O documento será lido sempre da <strong>coluna 2 até a coluna 15</strong>
+        (caracteres de índice 1 a 14 de cada linha).<br>
+        • Começa com <code>000</code> → tratado como <strong>CPF</strong> (últimos 11 dígitos)<br>
+        • Qualquer outro valor com 14 dígitos → tratado como <strong>CNPJ</strong>
+      </p>
+      <div class="file-input-wrapper">
+        <label class="file-input-label" for="origemInput">📁 Escolher arquivo .txt</label>
+        <input type="file" id="origemInput" accept=".txt,text/plain"
+               onchange="onOrigemSelecionado(this)"/>
+      </div>
+      <div class="file-name-display" id="origemNome">Nenhum arquivo selecionado</div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnExtrair"       onclick="extrairCNPJs()" disabled>🔍 Extrair</button>
+      <button id="btnLimparExtrair" onclick="limparExtrair()">✕ Limpar</button>
+    </div>
+
+    <div id="statusExtrair"></div>
+
+    <div class="detection-box" id="detectionBox"></div>
+
+    <div class="extrair-stats" id="extrairStats" style="display:none;">
+      <span class="stat-chip"         id="statLinhas"></span>
+      <span class="stat-chip"         id="statTotal"></span>
+      <span class="stat-chip success" id="statUnicos"></span>
+      <span class="stat-chip warn"    id="statDupl"></span>
+      <span class="stat-chip danger"  id="statInvalidos" style="display:none;"></span>
+    </div>
+
+    <div class="limit-notice" id="limitNotice"></div>
+
+    <div class="listas-wrapper" id="listasWrapper" style="display:none;">
+      <div class="lista-col">
+        <label>🏢 CNPJs encontrados <span id="cntCNPJ" style="font-weight:400; color:#888;"></span></label>
+        <div class="cnpj-list-wrapper cnpj-theme">
+          <div class="cnpj-list-header"><span>CNPJ</span></div>
+          <div class="cnpj-list-body" id="cnpjListBody"></div>
+        </div>
+      </div>
+      <div class="lista-col">
+        <label>👤 CPFs encontrados <span id="cntCPF" style="font-weight:400; color:#888;"></span></label>
+        <div class="cnpj-list-wrapper cpf-theme">
+          <div class="cnpj-list-header"><span>CPF</span></div>
+          <div class="cnpj-list-body" id="cpfListBody"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ABA 3 · Converter NFSe
+     ══════════════════════════════════════════════════════ -->
+<div id="aba-nfse" class="tab-content">
+  <div class="card">
+
+    <div class="nfse-info-box">
+      <strong>📋 Layout de leitura (arquivo TXR/TXT de largura fixa):</strong><br>
+      • <strong>Documento (CNPJ/CPF):</strong> colunas 2–15 (índice 1, comprimento 14)<br>
+      • <strong>Data:</strong> colunas 36–43 (índice 35, comprimento 8) — aceita AAAAMMDD ou DDMMAAAA<br>
+      • <strong>Valor:</strong> colunas 44–57 (índice 43, comprimento 14)<br>
+      • <strong>Coluna 10 (código):</strong> <code>8002</code> se a linha contiver "Reembolso" <em>ou</em> se colunas 98–109 forem zeros/vazias; caso contrário <code>8001</code><br>
+      • <strong>Saída:</strong> arquivo <code>.txt</code> com 28 colunas separadas por <code>;</code>
+    </div>
+
+    <div class="file-box">
+      <label>📂 Arquivo de entrada (.txr ou .txt)</label>
+      <p class="file-desc">Arquivo de largura fixa gerado pelo sistema de origem.</p>
+      <div class="file-input-wrapper">
+        <label class="file-input-label" for="nfseInput">📁 Escolher arquivo</label>
+        <input type="file" id="nfseInput" accept=".txr,.txt,text/plain"
+               onchange="onNFSeArquivoSelecionado(this)"/>
+      </div>
+      <div class="file-name-display" id="nfseNomeArquivo">Nenhum arquivo selecionado</div>
+    </div>
+
+    <div class="nfse-config-grid">
+      <div class="nfse-config-item">
+        <label for="nfseSeqInicial">🔢 Numeração inicial (Coluna 6)</label>
+        <input type="number" id="nfseSeqInicial" value="1" min="1" max="2147483647"/>
+      </div>
+      <div class="nfse-config-item">
+        <label style="color:#888; font-weight:400; font-size:0.8rem; margin-top:auto;">
+          A sequência é incrementada a cada linha processada, começando pelo valor informado acima.
+        </label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnProcessarNFSe" onclick="processarNFSe()" disabled>⚙️ Processar</button>
+      <button id="btnLimparNFSe"    onclick="limparNFSe()">✕ Limpar</button>
+      <button id="btnDownloadNFSe"  onclick="downloadNFSe()">⬇ Baixar arquivo gerado</button>
+    </div>
+
+    <div id="statusNFSe"></div>
+
+    <div class="nfse-stats" id="nfseStats" style="display:none;">
+      <span class="stat-chip"         id="nfseStatLinhas"></span>
+      <span class="stat-chip success" id="nfseStatOk"></span>
+      <span class="stat-chip warn"    id="nfseStatCod8001"></span>
+      <span class="stat-chip"         id="nfseStatCod8002"></span>
+    </div>
+
+    <div class="nfse-preview" id="nfseLog"></div>
+
+  </div>
+</div>
+
+<script>
+  /* ═══════════════════════════════════════════
+     ABAS
+  ═══════════════════════════════════════════ */
+  function trocarAba(aba) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('aba-' + aba).classList.add('active');
+    const idx = { consulta: 0, extrair: 1, nfse: 2 };
+    document.querySelectorAll('.tab-btn')[idx[aba]].classList.add('active');
+  }
+
+  /* ═══════════════════════════════════════════
+     ABA 1 · CONSULTA
+  ═══════════════════════════════════════════ */
+  let dadosResultados = [];
+  let tipoSelecionado = null;
+
+  function selecionarTipo(tipo) {
+    tipoSelecionado = tipo;
+    const btnC  = document.getElementById('btnCliente');
+    const btnF  = document.getElementById('btnFornecedor');
+    const badge = document.getElementById('tipoBadge');
+    btnC.className = 'tipo-btn';
+    btnF.className = 'tipo-btn';
+    if (tipo === 'C') {
+      btnC.classList.add('selected-cliente');
+      badge.textContent = 'Coluna preenchida como "C"';
+      badge.className   = 'tipo-badge badge-c show';
+    } else {
+      btnF.classList.add('selected-fornecedor');
+      badge.textContent = 'Coluna preenchida como "F"';
+      badge.className   = 'tipo-badge badge-f show';
+    }
+  }
+
+  function limparCNPJ(raw)    { return raw.replace(/\D/g, ''); }
+  function formatarCNPJ(cnpj) {
+    if (cnpj.length === 11) return cnpj.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (cnpj.length === 14) return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    return cnpj;
+  }
+  function formatarMoeda(valor) {
+    if (!valor && valor !== 0) return '—';
+    return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  function formatarData(dataStr) {
+    if (!dataStr) return '—';
+    const p = dataStr.split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dataStr;
+  }
+  function formatarCEP(cep) {
+    if (!cep) return '';
+    const c = cep.replace(/\D/g, '');
+    return c.length === 8 ? c.replace(/(\d{5})(\d{3})/, '$1-$2') : cep;
+  }
+  function badgeSituacao(situacao) {
+    if (!situacao) return '<span class="badge badge-outro">—</span>';
+    const s = situacao.toUpperCase();
+    let cls = 'badge-outro';
+    if      (s.includes('ATIVA'))    cls = 'badge-ativa';
+    else if (s.includes('BAIXADA'))  cls = 'badge-baixada';
+    else if (s.includes('INAPTA'))   cls = 'badge-inapta';
+    else if (s.includes('SUSPENSA')) cls = 'badge-suspensa';
+    return `<span class="badge ${cls}">${situacao}</span>`;
+  }
+  function parsearCNPJs(texto) {
+    return texto.split(/[\n,;]+/)
+      .map(s => limparCNPJ(s.trim()))
+      .filter(s => s.length > 0);
+  }
+  function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+  async function consultarCNPJ(cnpj, tentativa = 1) {
+    const ESPERA = [0, 4000, 8000];
+    await new Promise(r => setTimeout(r, ESPERA[tentativa - 1]));
+    try {
+      const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+      if ((resp.status === 429 || resp.status >= 500) && tentativa < 3) {
+        setStatus(`⚠️ API sobrecarregada. Tentativa ${tentativa + 1}/3: ${formatarCNPJ(cnpj)}...`);
+        return consultarCNPJ(cnpj, tentativa + 1);
+      }
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.message || `HTTP ${resp.status}`);
+      }
+      return resp.json();
+    } catch (e) {
+      if (tentativa < 3 && (e.message === 'Failed to fetch' || e.name === 'TypeError')) {
+        setStatus(`⚠️ Falha de rede. Tentativa ${tentativa + 1}/3: ${formatarCNPJ(cnpj)}...`);
+        return consultarCNPJ(cnpj, tentativa + 1);
+      }
+      throw e;
+    }
+  }
+
+  function adicionarLinhaCarregando(tbody, index, cnpjFmt) {
+    const tr = document.createElement('tr');
+    tr.id = `row-${index}`; tr.classList.add('loading-row');
+    tr.innerHTML = `<td colspan="18"><span class="spinner"></span> Consultando ${cnpjFmt}...</td>`;
+    tbody.appendChild(tr); return tr;
+  }
+
+  function preencherLinha(tr, index, cnpjRaw, dados) {
+    const cnpjFmt  = formatarCNPJ(cnpjRaw);
+    const cnaeDesc = dados.cnae_fiscal_descricao
+      ? `${dados.cnae_fiscal || ''} – ${dados.cnae_fiscal_descricao}`
+      : (dados.cnae_fiscal || '—');
+    const telefone = [dados.ddd_telefone_1, dados.ddd_telefone_2].filter(Boolean).join(' / ') || '—';
+    const tipoCls  = tipoSelecionado === 'C' ? 'badge-tipo-C' : 'badge-tipo-F';
+    tr.classList.remove('loading-row');
+    tr.innerHTML = `
+      <td><span class="badge ${tipoCls}">${tipoSelecionado || '—'}</span></td>
+      <td class="cnpj-cell">${cnpjFmt}</td>
+      <td>${dados.razao_social || '—'}</td>
+      <td>${dados.nome_fantasia || '—'}</td>
+      <td>${badgeSituacao(dados.descricao_situacao_cadastral || dados.situacao_cadastral)}</td>
+      <td>${formatarData(dados.data_inicio_atividade)}</td>
+      <td title="${dados.cnae_fiscal_descricao || ''}">${cnaeDesc}</td>
+      <td>${dados.natureza_juridica || '—'}</td>
+      <td>${dados.porte || '—'}</td>
+      <td>${dados.uf || '—'}</td>
+      <td>${dados.municipio || '—'}</td>
+      <td>${dados.bairro || '—'}</td>
+      <td>${dados.logradouro || '—'}</td>
+      <td>${dados.numero || '—'}</td>
+      <td>${dados.complemento || '—'}</td>
+      <td>${formatarCEP(dados.cep) || '—'}</td>
+      <td>${telefone}</td>
+      <td>${formatarMoeda(dados.capital_social)}</td>`;
+  }
+
+  function preencherLinhaErro(tr, index, cnpjRaw, mensagem) {
+    tr.classList.remove('loading-row');
+    tr.innerHTML = `
+      <td>—</td>
+      <td class="cnpj-cell">${formatarCNPJ(cnpjRaw)}</td>
+      <td colspan="16"><span class="badge badge-erro">⚠ Erro após 3 tentativas: ${mensagem}</span></td>`;
+  }
+
+  async function consultarTodos() {
+    if (!tipoSelecionado) { alert('Por favor, selecione o tipo: Cliente ou Fornecedor.'); return; }
+    const texto = document.getElementById('cnpjInput').value.trim();
+    if (!texto) { alert('Por favor, insira ao menos um CNPJ.'); return; }
+    const cnpjs     = parsearCNPJs(texto);
+    const validos   = cnpjs.filter(c => c.length === 14);
+    const invalidos = cnpjs.filter(c => c.length !== 14 && c.length > 0);
+    if (validos.length === 0) { alert('Nenhum CNPJ válido encontrado (precisam ter 14 dígitos).'); return; }
+    dadosResultados = [];
+    const tbody = document.getElementById('tabelaBody');
+    tbody.innerHTML = '';
+    document.getElementById('resultsWrapper').style.display    = 'block';
+    document.getElementById('btnExportar').style.display       = 'none';
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('progressBar').style.width         = '0%';
+    const btn = document.getElementById('btnConsultar');
+    btn.disabled = true; btn.textContent = '⏳ Consultando...';
+    if (invalidos.length > 0)
+      setStatus(`⚠ ${invalidos.length} CNPJ(s) ignorado(s) por ter número inválido de dígitos.`);
+    const rows = validos.map((cnpj, i) => adicionarLinhaCarregando(tbody, i, formatarCNPJ(cnpj)));
+    let concluidos = 0;
+    for (let i = 0; i < validos.length; i++) {
+      const cnpj = validos[i];
+      setStatus(`Consultando ${i + 1} de ${validos.length}: ${formatarCNPJ(cnpj)}`);
+      try {
+        const dados = await consultarCNPJ(cnpj);
+        preencherLinha(rows[i], i, cnpj, dados);
+        dadosResultados.push({ cnpj, dados, erro: null });
+      } catch (e) {
+        preencherLinhaErro(rows[i], i, cnpj, e.message);
+        dadosResultados.push({ cnpj, dados: null, erro: e.message });
+      }
+      concluidos++;
+      document.getElementById('progressBar').style.width = Math.round((concluidos / validos.length) * 100) + '%';
+      if (i < validos.length - 1) await new Promise(r => setTimeout(r, 1200));
+    }
+    setStatus(`✅ Consulta finalizada! ${validos.length} CNPJ(s) processado(s).`);
+    document.getElementById('btnExportar').style.display = 'inline-block';
+    btn.disabled = false; btn.textContent = '▶ Consultar';
+  }
+
+  function limpar() {
+    document.getElementById('cnpjInput').value = '';
+    document.getElementById('tabelaBody').innerHTML = '';
+    document.getElementById('resultsWrapper').style.display    = 'none';
+    document.getElementById('btnExportar').style.display       = 'none';
+    document.getElementById('progressContainer').style.display = 'none';
+    document.getElementById('progressBar').style.width = '0%';
+    setStatus(''); dadosResultados = []; tipoSelecionado = null;
+    document.getElementById('btnCliente').className    = 'tipo-btn';
+    document.getElementById('btnFornecedor').className = 'tipo-btn';
+    document.getElementById('tipoBadge').className     = 'tipo-badge';
+    document.getElementById('tipoBadge').textContent   = '';
+  }
+
+  function exportarCSV() {
+    if (dadosResultados.length === 0) return;
+    const cab = ['Tipo','Razão Social','CPF/CNPJ','Inscrição Estadual','Inscrição Municipal',
+                 'UF','Município','Bairro','Endereço','Número','Endereço','Complemento Endereço','CEP','Telefone'];
+    const linhas = dadosResultados.map(({ cnpj, dados }) => {
+      if (!dados) return [tipoSelecionado||'','',formatarCNPJ(cnpj),'','','','','','','','','','',''];
+      const tel = [dados.ddd_telefone_1, dados.ddd_telefone_2].filter(Boolean).join(' / ');
+      return [tipoSelecionado||'', dados.razao_social||'', formatarCNPJ(cnpj), '','',
+              dados.uf||'', dados.municipio||'', dados.bairro||'', dados.logradouro||'',
+              dados.numero||'', dados.logradouro||'', dados.complemento||'',
+              formatarCEP(dados.cep)||'', tel];
+    });
+    const csv = [cab,...linhas].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(';')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download=`consulta_cnpj_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  /* ═══════════════════════════════════════════
+     ABA 2 · EXTRAIR CNPJ
+     Regra simplificada:
+       - 14 dígitos começando com "000" → CPF (últimos 11 dígitos)
+       - 14 dígitos em qualquer outro caso → CNPJ
+  ═══════════════════════════════════════════ */
+  const CNPJ_INICIO = 1;
+  const CNPJ_FIM    = 15;
+  const MAX_EXIBIR  = 100;
+
+  let conteudoOrigem = '';
+
+  function onOrigemSelecionado(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('origemNome').textContent =
+      `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    const reader = new FileReader();
+    reader.onload = e => {
+      conteudoOrigem = e.target.result;
+      document.getElementById('btnExtrair').disabled = false;
+      document.getElementById('statusExtrair').textContent =
+        '✅ Arquivo carregado. Clique em "Extrair".';
+    };
+    reader.onerror = () => {
+      document.getElementById('statusExtrair').textContent = '❌ Erro ao ler o arquivo.';
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function extrairCNPJs() {
+    if (!conteudoOrigem) {
+      document.getElementById('statusExtrair').textContent = '⚠️ Nenhum arquivo carregado.';
+      return;
+    }
+
+    const todasLinhas   = conteudoOrigem.split(/\r?\n/);
+    const linhasValidas = todasLinhas.filter(l => l.length > CNPJ_INICIO);
+
+    // Preview das primeiras linhas com destaque visual
+    const detBox = document.getElementById('detectionBox');
+    const exemploLinhas = linhasValidas.slice(0, 3).map(l => {
+      const col1  = l.substring(0, CNPJ_INICIO);
+      const doc   = l.substring(CNPJ_INICIO, CNPJ_FIM);
+      const resto = l.substring(CNPJ_FIM, CNPJ_FIM + 20);
+      return `<span class="hl-col1">${escHtml(col1)}</span>` +
+             `<span class="hl-cnpj">${escHtml(doc)}</span>` +
+             `<span class="hl-resto">${escHtml(resto)}…</span>`;
+    }).join('<br>');
+
+    detBox.innerHTML =
+      `<strong>🔎 Leitura: posição fixa · col1=[0] · Documento=[1..14] · resto=[15+]</strong><br><br>` +
+      `<strong>Legenda:</strong> ` +
+      `<span class="hl-col1">col 1</span> ` +
+      `<span class="hl-cnpj">CNPJ/CPF (col 2–15)</span> ` +
+      `<span class="hl-resto">restante</span><br><br>` +
+      exemploLinhas;
+    detBox.style.display = 'block';
+
+    const vistosCNPJ = new Set();
+    const vistosCPF  = new Set();
+    const unicosCNPJ = [];
+    const unicosCPF  = [];
+    let totalBruto = 0;
+    let totalInval = 0;
+
+    for (const linha of linhasValidas) {
+      const trecho = linha.substring(CNPJ_INICIO, CNPJ_FIM);
+      const digits = trecho.replace(/\D/g, '');
+
+      // Descarta se não tiver exatamente 14 dígitos
+      if (digits.length !== 14) {
+        if (digits.length >= 8) totalInval++;
+        continue;
+      }
+
+      totalBruto++;
+
+      if (digits.startsWith('000')) {
+        // ── CPF: começa com 000 → pega os últimos 11 dígitos ──
+        const cpf = digits.substring(3);
+        if (!vistosCPF.has(cpf)) {
+          vistosCPF.add(cpf);
+          unicosCPF.push(cpf);
+        }
+      } else {
+        // ── CNPJ: qualquer outro caso com 14 dígitos ──
+        if (!vistosCNPJ.has(digits)) {
+          vistosCNPJ.add(digits);
+          unicosCNPJ.push(digits);
+        }
+      }
+    }
+
+    const totalUnicos = unicosCNPJ.length + unicosCPF.length;
+    const duplicatas  = totalBruto - totalUnicos;
+
+    const cnpjExibir    = unicosCNPJ.slice(0, MAX_EXIBIR);
+    const cpfExibir     = unicosCPF.slice(0, MAX_EXIBIR);
+    const limitExcedido = unicosCNPJ.length > MAX_EXIBIR || unicosCPF.length > MAX_EXIBIR;
+
+    // Estatísticas
+    document.getElementById('statLinhas').textContent  = `📋 ${linhasValidas.length} linha(s)`;
+    document.getElementById('statTotal').textContent   = `🔢 ${totalBruto} registro(s) lido(s)`;
+    document.getElementById('statUnicos').textContent  = `✅ ${totalUnicos} único(s)`;
+    document.getElementById('statDupl').textContent    = `♻️ ${duplicatas} duplicata(s)`;
+
+    const elInval = document.getElementById('statInvalidos');
+    if (totalInval > 0) {
+      elInval.textContent    = `❌ ${totalInval} inválido(s)`;
+      elInval.style.display  = 'inline-block';
+    } else {
+      elInval.style.display  = 'none';
+    }
+    document.getElementById('extrairStats').style.display = 'flex';
+
+    const limitNotice = document.getElementById('limitNotice');
+    if (limitExcedido) {
+      limitNotice.innerHTML    = '⚠️ Mais de 100 registros encontrados. Exibindo apenas os primeiros <strong>100</strong> de cada lista.';
+      limitNotice.style.display = 'block';
+    } else {
+      limitNotice.style.display = 'none';
+    }
+
+    document.getElementById('cntCNPJ').textContent = `(${unicosCNPJ.length})`;
+    document.getElementById('cntCPF').textContent  = `(${unicosCPF.length})`;
+
+    // Lista CNPJs
+    const cnpjBody = document.getElementById('cnpjListBody');
+    cnpjBody.innerHTML = '';
+    if (cnpjExibir.length === 0) {
+      cnpjBody.innerHTML = '<div class="empty-msg">Nenhum CNPJ encontrado</div>';
+    } else {
+      cnpjExibir.forEach(valor => {
+        const row = document.createElement('div');
+        row.className = 'cnpj-list-row';
+        row.innerHTML = `<span class="num">${formatarCNPJ(valor)}</span>`;
+        cnpjBody.appendChild(row);
+      });
+    }
+
+    // Lista CPFs
+    const cpfBody = document.getElementById('cpfListBody');
+    cpfBody.innerHTML = '';
+    if (cpfExibir.length === 0) {
+      cpfBody.innerHTML = '<div class="empty-msg">Nenhum CPF encontrado</div>';
+    } else {
+      cpfExibir.forEach(valor => {
+        const row = document.createElement('div');
+        row.className = 'cnpj-list-row';
+        row.innerHTML = `<span class="num">${formatarCNPJ(valor)}</span>`;
+        cpfBody.appendChild(row);
+      });
+    }
+
+    document.getElementById('listasWrapper').style.display = 'flex';
+    document.getElementById('statusExtrair').textContent =
+      `✅ Extração concluída! ${unicosCNPJ.length} CNPJ(s) e ${unicosCPF.length} CPF(s) único(s) encontrados.`;
+  }
+
+  function limparExtrair() {
+    conteudoOrigem = '';
+    document.getElementById('origemInput').value           = '';
+    document.getElementById('origemNome').textContent      = 'Nenhum arquivo selecionado';
+    document.getElementById('statusExtrair').textContent   = '';
+    document.getElementById('detectionBox').style.display  = 'none';
+    document.getElementById('detectionBox').innerHTML      = '';
+    document.getElementById('extrairStats').style.display  = 'none';
+    document.getElementById('limitNotice').style.display   = 'none';
+    document.getElementById('cnpjListBody').innerHTML      = '';
+    document.getElementById('cpfListBody').innerHTML       = '';
+    document.getElementById('listasWrapper').style.display = 'none';
+    document.getElementById('cntCNPJ').textContent         = '';
+    document.getElementById('cntCPF').textContent          = '';
+    document.getElementById('btnExtrair').disabled         = true;
+  }
+
+  /* ═══════════════════════════════════════════
+     ABA 3 · CONVERTER NFSe
+  ═══════════════════════════════════════════ */
+  let nfseConteudo    = '';
+  let nfseSaidaLinhas = [];
+  let nfseNomeSaida   = '';
+
+  function nfse_substrSafe(s, start, len) {
+    if (!s) return '';
+    if (start < 0 || len <= 0 || start >= s.length) return '';
+    return s.substring(start, Math.min(start + len, s.length));
+  }
+  function nfse_onlyDigits(s) { return s ? s.replace(/\D/g, '') : ''; }
+  function nfse_formatCNPJ(raw) {
+    let d = nfse_onlyDigits(raw).padStart(14, '0').substring(0, 14);
+    return `${d.substring(0,2)}.${d.substring(2,5)}.${d.substring(5,8)}/${d.substring(8,12)}-${d.substring(12,14)}`;
+  }
+  function nfse_formatCPF(raw) {
+    let d = nfse_onlyDigits(raw);
+    if (d.length < 11) d = d.padStart(11, '0');
+    if (d.length > 11) d = d.substring(d.length - 11);
+    return `${d.substring(0,3)}.${d.substring(3,6)}.${d.substring(6,9)}-${d.substring(9,11)}`;
+  }
+  function nfse_formatDocumento(raw14) {
+    const d = nfse_onlyDigits(raw14);
+    if (d.startsWith('000')) {
+      const cpfDigits = d.length >= 11 ? d.substring(Math.max(0, d.length - 11)) : d;
+      return nfse_formatCPF(cpfDigits);
+    }
+    return nfse_formatCNPJ(d);
+  }
+  function nfse_parseDate8(raw8) {
+    const d = nfse_onlyDigits(raw8);
+    if (d.length !== 8) return '';
+    const y1 = parseInt(d.substring(0,4),10), m1 = parseInt(d.substring(4,6),10), dd1 = parseInt(d.substring(6,8),10);
+    if (y1>=1900&&y1<=2100&&m1>=1&&m1<=12&&dd1>=1&&dd1<=31) {
+      try {
+        const dt = new Date(y1, m1-1, dd1);
+        if (dt.getFullYear()===y1&&dt.getMonth()===m1-1&&dt.getDate()===dd1)
+          return `${String(dd1).padStart(2,'0')}/${String(m1).padStart(2,'0')}/${y1}`;
+      } catch(e){}
+    }
+    const dd2 = parseInt(d.substring(0,2),10), m2 = parseInt(d.substring(2,4),10), y2 = parseInt(d.substring(4,8),10);
+    if (y2>=1900&&y2<=2100&&m2>=1&&m2<=12&&dd2>=1&&dd2<=31) {
+      try {
+        const dt = new Date(y2, m2-1, dd2);
+        if (dt.getFullYear()===y2&&dt.getMonth()===m2-1&&dt.getDate()===dd2)
+          return `${String(dd2).padStart(2,'0')}/${String(m2).padStart(2,'0')}/${y2}`;
+      } catch(e){}
+    }
+    return '';
+  }
+  function nfse_normalizeValor(raw) {
+    if (!raw || !raw.trim()) return '';
+    let v = raw.trim().replace(/\./g,',').replace(/[^0-9,]/g,'').replace(/^0+(?=\d)/,'');
+    if (v.startsWith(',')) v = '0' + v;
+    return v;
+  }
+
+  function nfseLog(msg, tipo) {
+    const el  = document.getElementById('nfseLog');
+    el.style.display = 'block';
+    const cls = { ok:'log-ok', warn:'log-warn', err:'log-err', dbg:'log-dbg', info:'log-info' }[tipo] || '';
+    const ts  = new Date().toLocaleTimeString('pt-BR');
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+    span.textContent = `[${ts}] ${msg}\n`;
+    el.appendChild(span);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function onNFSeArquivoSelecionado(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('nfseNomeArquivo').textContent =
+      `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    const reader = new FileReader();
+    reader.onload = e => {
+      nfseConteudo = e.target.result;
+      document.getElementById('btnProcessarNFSe').disabled = false;
+      document.getElementById('statusNFSe').textContent =
+        '✅ Arquivo carregado. Ajuste a numeração e clique em "Processar".';
+    };
+    reader.onerror = () => {
+      document.getElementById('statusNFSe').textContent = '❌ Erro ao ler o arquivo.';
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function processarNFSe() {
+    if (!nfseConteudo) {
+      document.getElementById('statusNFSe').textContent = '⚠️ Nenhum arquivo carregado.';
+      return;
+    }
+    const startSeq = parseInt(document.getElementById('nfseSeqInicial').value, 10) || 1;
+    const logEl = document.getElementById('nfseLog');
+    logEl.innerHTML = ''; logEl.style.display = 'block';
+    nfseSaidaLinhas = [];
+
+    nfseLog(`Iniciando processamento... (Sequência inicial: ${startSeq})`, 'info');
+
+    const todasLinhas = nfseConteudo.split(/\r?\n/);
+    const linhas = todasLinhas[todasLinhas.length - 1].trim() === ''
+      ? todasLinhas.slice(0, -1) : todasLinhas;
+
+    let seq = startSeq - 1, cnt8001 = 0, cnt8002 = 0;
+
+    for (let i = 0; i < linhas.length; i++) {
+      const ln       = linhas[i];
+      const docRaw   = nfse_substrSafe(ln, 1, 14);
+      const docFmt   = nfse_formatDocumento(docRaw);
+      const dataRaw  = nfse_substrSafe(ln, 35, 8);
+      const dataFmt  = nfse_parseDate8(dataRaw);
+      const valorRaw = nfse_substrSafe(ln, 43, 14);
+      const valorFmt = nfse_normalizeValor(valorRaw);
+
+      const hasReembolso = /reembolso/i.test(ln);
+      const c98raw       = nfse_substrSafe(ln, 97, 12);
+      const c98digits    = nfse_onlyDigits(c98raw);
+      const allZeros     = !c98digits || /^0+$/.test(c98digits);
+      const col10Code    = (hasReembolso || allZeros) ? '8002' : '8001';
+
+      nfseLog(
+        `[DBG] Linha ${i+1} | Reembolso=${hasReembolso} | 98..109='${c98raw}' | Digits='${c98digits}' | AllZeros=${allZeros} → COL10=${col10Code}`,
+        'dbg'
+      );
+
+      seq++;
+      if (col10Code === '8001') cnt8001++; else cnt8002++;
+
+      nfseSaidaLinhas.push([
+        docFmt, '', '', '', '', String(seq), 'R', dataFmt, '1', col10Code,
+        '', valorFmt, '', '', valorFmt, '', '', '', '', '',
+        '', '', '', '', '', 'V0001', '1', valorFmt
+      ].join(';'));
+    }
+
+    if (nfseSaidaLinhas.length === 0) {
+      nfseLog('⚠️ Nenhuma linha gerada.', 'warn');
+      document.getElementById('statusNFSe').textContent = '⚠️ Nenhuma linha gerada.';
+      return;
+    }
+
+    const now = new Date();
+    const ts  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    nfseNomeSaida = `saida_${ts}.txt`;
+
+    nfseLog(`Arquivo gerado: ${nfseNomeSaida}`, 'ok');
+    nfseLog(`Total: ${nfseSaidaLinhas.length} linha(s) | 8001: ${cnt8001} | 8002: ${cnt8002}`, 'ok');
+
+    document.getElementById('nfseStatLinhas').textContent  = `📋 ${linhas.length} linha(s) lida(s)`;
+    document.getElementById('nfseStatOk').textContent      = `✅ ${nfseSaidaLinhas.length} linha(s) gerada(s)`;
+    document.getElementById('nfseStatCod8001').textContent = `🔵 8001: ${cnt8001}`;
+    document.getElementById('nfseStatCod8002').textContent = `🟡 8002: ${cnt8002}`;
+    document.getElementById('nfseStats').style.display       = 'flex';
+    document.getElementById('btnDownloadNFSe').style.display = 'inline-block';
+    document.getElementById('statusNFSe').textContent =
+      `✅ Concluído! ${nfseSaidaLinhas.length} linha(s) gerada(s). Clique em "Baixar arquivo gerado".`;
+  }
+
+  function downloadNFSe() {
+    if (nfseSaidaLinhas.length === 0) return;
+    const blob = new Blob([nfseSaidaLinhas.join('\r\n')], { type: 'text/plain;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = nfseNomeSaida || 'saida_nfse.txt';
+    a.click(); URL.revokeObjectURL(url);
+    nfseLog(`Download iniciado: ${nfseNomeSaida}`, 'ok');
+  }
+
+  function limparNFSe() {
+    nfseConteudo = ''; nfseSaidaLinhas = []; nfseNomeSaida = '';
+    document.getElementById('nfseInput').value               = '';
+    document.getElementById('nfseNomeArquivo').textContent   = 'Nenhum arquivo selecionado';
+    document.getElementById('statusNFSe').textContent        = '';
+    document.getElementById('nfseLog').innerHTML             = '';
+    document.getElementById('nfseLog').style.display         = 'none';
+    document.getElementById('nfseStats').style.display       = 'none';
+    document.getElementById('btnProcessarNFSe').disabled     = true;
+    document.getElementById('btnDownloadNFSe').style.display = 'none';
+  }
+</script>
+</body>
+</html>
