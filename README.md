@@ -1,2 +1,0 @@
-# ConverterReciboVectorGiacobbe
-ConverterReciboVectorGiacobbe
